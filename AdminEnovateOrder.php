@@ -1,6 +1,6 @@
 <?php
 
-class AdminEnovateMentor extends ModuleAdminController
+class AdminEnovateOrder extends ModuleAdminController
 {
     public function init()
     {

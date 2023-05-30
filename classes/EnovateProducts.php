@@ -1,6 +1,7 @@
 <?php
+require_once 'EnovateProductDTO.php';
 
-class Oblio_Products {
+class EnovateProducts {
     /**
      *  Finds product if it exists
      *  @param array data
@@ -161,6 +162,8 @@ class Oblio_Products {
                 LEFT JOIN `'._DB_PREFIX_.'product_shop` ps ON (ps.id_product = p.id_product AND ps.id_shop ='.Context::getContext()->shop->id.')
                 LEFT JOIN `'._DB_PREFIX_.'product_lang` pl
                     ON (pl.`id_product` = p.`id_product` AND pl.id_shop ='.Context::getContext()->shop->id.' AND pl.`id_lang` = '.Context::getContext()->language->id.')
+                LEFT JOIN `'._DB_PREFIX_. 'enovate_products` envp ON envp.id_product = p.id_product AND envp.status = 1
+                WHERE envp.id IS NULL
                 GROUP BY pl.`id_product`';
         return Db::getInstance()->executeS($sql);
     }
@@ -215,67 +218,6 @@ class Oblio_Products {
             }
         }
         return 0;
-    }
-
-    public function exportProducts() {
-        $items = $this->getAll();
-
-        $context = Context::getContext();
-        $id_shop = $context->shop->id;
-        $id_lang = $context->language->id;
-
-        // retrieve address informations
-        $address = new Address();
-        $address->id_country = $context->country->id;
-        $address->id_state = 0;
-        $address->postcode = 0;
-
-        $filename = 'export_stoc_initial_oblio.csv';
-        header('Content-Type: text/csv');
-        header('Content-Disposition: attachment;filename=' . $filename);
-        $out = fopen('php://output', 'w');
-        fputcsv($out, [
-            'Denumire produs',
-            'Tip',
-            'Cod produs',
-            'Stoc',
-            'U.M.',
-            'Cost achizitie fara TVA',
-            'Pret vanzare',
-            'Cota TVA',
-            'TVA inclus',
-        ]);
-        foreach ($items as $item) {
-            $product = new Product($item['id_product'], false, $id_lang);
-            $tax_manager = TaxManagerFactory::getManager($address, Product::getIdTaxRulesGroupByIdProduct((int)$item['id_product'], $context));
-            $product_tax_calculator = $tax_manager->getTaxCalculator();
-
-            $line = [
-                $product->name,
-                'Marfa',
-                $product->reference,
-                0,
-                'buc',
-                $product->wholesale_price,
-                Product::getPriceStatic($product->id, true, null, 2), // $product->price,
-                $product_tax_calculator->getTotalRate(),
-                'DA',
-            ];
-            
-            $combinations = $this->getCombinations($product->id, $id_lang);
-            if (empty($combinations)) {
-                $line[3] = StockAvailable::getQuantityAvailableByProduct($product->id, null, $id_shop);
-                fputcsv($out, $line);
-            } else {
-                foreach ($combinations as $combination) {
-                    $line[0] = $product->name . $combination['attribute_designation'];
-                    $line[2] = $combination['reference'];
-                    $line[3] = $combination['quantity'];
-                    fputcsv($out, $line);
-                }
-            }
-        }
-        fclose($out);
     }
 
     public function generateCode($id) {

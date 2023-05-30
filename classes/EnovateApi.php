@@ -119,6 +119,15 @@ class EnovateApi {
     public function createInvoice($data) {
         return $this->_createDoc('invoice', $data);
     }
+
+    public function createProducts(array $data): ?array
+    {
+        return $this->_createProducts($data);
+    }
+
+    public function createProductInvoice(array $data): array {
+        return $this->_createDoc('product', $data);
+    }
     
     /**
      *  @param array $data - array with the document information (see $defaultData above)
@@ -246,7 +255,16 @@ class EnovateApi {
 //            throw new Exception('Empty cif');
 //        }
         $request = $this->_getAuthorization();
-        $request->rawPost($this->_baseURL . '/api/sendToMentor', json_encode($data));
+        $request->rawPost($this->_baseURL . '/api/sendInvoiceToMentor', json_encode($data));
+        $this->_checkErrorResponse($request);
+
+        return json_decode($request->getResponse(), true);
+    }
+
+    protected function _createProducts(array $data): ?array
+    {
+        $request = $this->_getAuthorization();
+        $request->rawPost($this->_baseURL . '/api/sendProductsToMentor', json_encode($data));
         $this->_checkErrorResponse($request);
 
         return json_decode($request->getResponse(), true);
@@ -293,7 +311,7 @@ class EnovateApi {
     protected function _checkErrorResponse($request) {
         $transferInfo = $request->getTransferInfo();
 //        dd($transferInfo);
-        if ($transferInfo['http_code'] === 200) {
+        if ($transferInfo['http_code'] !== 200) {
             $message = json_decode($request->getResponse());
             if (!$message) {
                 $message = new stdClass();

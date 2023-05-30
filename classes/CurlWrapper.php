@@ -638,6 +638,7 @@ class CurlWrapper
     {
         $this->clearRequestParams();
         $this->addHeader('Content-Length', strlen($data));
+        $this->addHeader('Content-Type', 'application/json');
         $this->addOption(CURLOPT_POSTFIELDS, $data);
     }
     /**

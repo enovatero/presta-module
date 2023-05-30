@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <module>
     <name>enovate</name>
-    <displayName><![CDATA[eNovate module]]></displayName>
+    <displayName><![CDATA[ENOVATE module]]></displayName>
     <version><![CDATA[1.0.0]]></version>
     <description><![CDATA[ceva descriere aici]]></description>
     <author><![CDATA[spiderr]]></author>
