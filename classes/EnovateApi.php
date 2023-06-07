@@ -87,27 +87,25 @@ require_once 'CurlWrapper.php';
  */
 
 class EnovateApi {
-    protected $_cif                 = '';
-    protected $_email               = '';
-    protected $_secret              = '';
+    protected $_apiKey              = '';
     protected $_accessTokenHandler  = null;
+//    protected $_baseURL             = 'http://medaz.dev.enovate.ro';
     protected $_baseURL             = 'http://medaz.loc';
-    
+
+
     /**
      *  API constructor
-     *  @param string $email - account login email
-     *  @param string $secret - find token in: account settings > API secret
-     *  @param OblioApiAccessTokenHandlerInterface $accessTokenHandler (optional)
+     *  @param string $apiKey - find token in: account settings > API secret
+     *  @param EnovateApiAccessTokenHandlerInterface $accessTokenHandler (optional)
      */
-    public function __construct($email, $secret, $accessTokenHandler = null) {
-        $this->_email  = $email;
-        $this->_secret = $secret;
+    public function __construct(string $apiKey, $accessTokenHandler = null) {
+        $this->_apiKey = $apiKey;
         
         if (!$accessTokenHandler) {
             $accessTokenHandler = new EnovateApiAccessTokenHandler();
         }
         if (!$accessTokenHandler instanceof EnovateApiAccessTokenHandlerInterface) {
-            throw new Exception('accessTokenHandler class needs to implement OblioApiAccessTokenHandlerInterface');
+            throw new Exception('accessTokenHandler class needs to implement EnovateApiAccessTokenHandlerInterface');
         }
         $this->_accessTokenHandler = $accessTokenHandler;
     }
@@ -206,6 +204,8 @@ class EnovateApi {
         $cif = '';
         switch ($type) {
             case 'companies':
+            case 'getPricesFromMentor':
+            case 'getStockFromMentor':
                 break;
             case 'vat_rates':
             case 'products':
@@ -219,8 +219,9 @@ class EnovateApi {
                 throw new Exception('Type not implemented');
         }
         $request = $this->_getAuthorization();
-        $request->get($this->_baseURL . '/api/nomenclature/' . $type, compact('cif', 'name') + $filters);
+        $request->get($this->_baseURL . '/api/' . $type, compact('cif', 'name') + $filters);
         $this->_checkErrorResponse($request);
+
         return json_decode($request->getResponse(), true);
     }
     
@@ -284,13 +285,12 @@ class EnovateApi {
     }
     
     protected function _getAccessToken() {
-        if (!$this->_email || !$this->_secret) {
-            throw new Exception('Email or secret are empty!');
+        if (!$this->_apiKey) {
+            throw new Exception('No api key found!');
         }
         $request = new CurlWrapper();
         $request->post($this->_baseURL . '/api/authorize/token', array(
-            'client_id'     => $this->_email,
-            'client_secret' => $this->_secret,
+            'api_key' => $this->_apiKey,
             'grant_type'    => 'client_credentials',
         ));
         $transferInfo = $request->getTransferInfo();
@@ -322,7 +322,7 @@ class EnovateApi {
     }
 }
 
-// class AccessTokenHandler needs to implement OblioApiAccessTokenHandlerInterface
+// class AccessTokenHandler needs to implement EnovateApiAccessTokenHandlerInterface
 interface EnovateApiAccessTokenHandlerInterface {
     /**
      *  @return stdClass $accessToken

@@ -9,14 +9,14 @@ class EnovateProducts {
      */
     public function find($data) {
         $id_product = 0;
-        if (strlen($data['code']) > 0) {
+        if (strlen($data['id']) > 0) {
             $sql = "SELECT id_product FROM `" . _DB_PREFIX_ . "product`
-                    WHERE `reference`='" . pSQL($data['code']) . "'";
+                    WHERE `reference`='" . pSQL($data['id']) . "'";
             $id_product = (int) Db::getInstance()->getValue($sql);
             
             if ($id_product === 0) {
                 $sql = "SELECT id_product FROM `" . _DB_PREFIX_ . "product_attribute`
-                        WHERE `reference`='" . pSQL($data['code']) . "'";
+                        WHERE `reference`='" . pSQL($data['id']) . "'";
                 $id_product = (int) Db::getInstance()->getValue($sql);
             }
         }
@@ -81,7 +81,7 @@ class EnovateProducts {
      *  @param array data
      *  @return bool
      */
-    public function update($id_product, $data) {
+    public function updatePrice($id_product, $data) {
         if (empty($data['price'])) {
             return false;
         }
@@ -93,7 +93,7 @@ class EnovateProducts {
         $combinationId = 0;
         $quantity = 0;
         if (empty($combinations)) {
-            // $product->price        = $this->getPrice($data);
+             $product->price        = $this->getPrice($data);
             // $product->reference    = $data['code'];
             $product->quantity     = isset($data['quantity']) ? $data['quantity'] : 0;
             $product->out_of_stock = isset($data['quantity']) ? 0 : 1;
@@ -121,6 +121,48 @@ class EnovateProducts {
         }
         // if ($product->update()) {
             StockAvailable::setQuantity((int)$product->id, $combinationId, $quantity, Context::getContext()->shop->id);
+        // }
+        return true;
+    }
+
+    public function updateStock($id_product, $data) {
+        if (empty($data['stock'])) {
+            return false;
+        }
+        $langs = language::getLanguages();
+
+        $product = new Product($id_product);
+        // $product->id_tax_rules_group = $this->getTaxRulesGroupId($data['vatPercentage']);
+        $combinations = $product->getAttributeCombinations(Context::getContext()->language->id);
+        $combinationId = 0;
+        $quantity = 0;
+        if (empty($combinations)) {
+            $product->quantity     = isset($data['available']) ? $data['available'] : 0;
+            $product->out_of_stock = isset($data['available']) ? 0 : 1;
+            $quantity = $product->quantity;
+        } else {
+            foreach ($combinations as $combination) {
+                if ($combination['reference'] === $data['id']) {
+                    $combinationId = (int) $combination['id_product_attribute'];
+                    $obj = new Combination($combinationId);
+
+                    $obj->setFieldsToUpdate(array(
+                        // 'price'     => true,
+                        'quantity'  => true,
+                    ));
+
+                    // $obj->price    = $this->getPrice($data);
+                    $obj->quantity = isset($data['available']) ? $data['available'] : 0;
+
+                    $quantity = $obj->quantity;
+
+                    $obj->save();
+                    break;
+                }
+            }
+        }
+        // if ($product->update()) {
+        StockAvailable::setQuantity((int)$product->id, $combinationId, $quantity, Context::getContext()->shop->id);
         // }
         return true;
     }

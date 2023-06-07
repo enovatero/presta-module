@@ -10,7 +10,6 @@ class Enovate extends Module
 
     private $_table_orders             = 'enovate_orders';
     private $_table_products           = 'enovate_products';
-    private $_table_product_attributes = 'oblio_product_attributes';
     const PS_OS_NAME = 'PS_OS_ENOVATE';
     const INVOICE    = 1;
     const PROFORMA   = 2;
@@ -49,21 +48,26 @@ class Enovate extends Module
     {
         return
             parent::install()
+            && Configuration::updateValue('enovate_api_key', 'enovateSecret')
             && $this->installDb()
-            && $this->registerHook('rightColumn')
-            && $this->registerHook('leftColumn')
-            && $this->registerHook('displayAdminOrderMainBottom')
+//            && $this->registerHook('displayAdminOrderMainBottom')
             && $this->installTab();
     }
 
     public function uninstall()
     {
-        return $this->uninstallTab() && parent::uninstall();
+        return
+            $this->uninstallTab()
+            && Configuration::updateValue('enovate_api_key', null)
+            && parent::uninstall();
     }
 
     private function uninstallTab()
     {
-        $tabs = ['AdminEnovateMentor', 'AdminEnovateData'];
+        $tabs = [
+//            'AdminEnovateMentor',
+            'AdminEnovateData'
+        ];
         foreach ($tabs as $tab) {
             $id_tab = Tab::getIdFromClassName($tab);
             if ($id_tab) {
@@ -77,11 +81,11 @@ class Enovate extends Module
     private function installTab()
     {
         $tabs = [
-            [
-                'name'   => $this->name,
-                'class'  => 'AdminEnovateOrder',
-                'parent' => -1
-            ],
+//            [
+//                'name'   => $this->name,
+//                'class'  => 'AdminEnovateOrder',
+//                'parent' => -1
+//            ],
             [
                 'name'   => 'Sincronizare ENOVATE',
                 'class'  => 'AdminEnovateData',
@@ -101,16 +105,6 @@ class Enovate extends Module
             $tab->save();
         }
         return true;
-    }
-
-    public function hookLeftColumn($params)
-    {
-        echo "Hello World!";
-    }
-
-    public function hookRightColumn($params)
-    {
-        return $this->hookLeftColumn($params);
     }
 
     public function hookDisplayAdminOrderMainBottom(array $data)
@@ -151,6 +145,7 @@ class Enovate extends Module
 
     public function sendOrderToMentor($order, $options = [])
     {
+        return array();
 //        dd($order);
         if (!$order) {
             return array();
@@ -580,9 +575,8 @@ class Enovate extends Module
                 require_once 'classes/EnovateApi.php';
                 require_once 'classes/EnovateApiPrestashopAccessTokenHandler.php';
                 $accessTokenHandler = new EnovateApiPrestashopAccessTokenHandler();
-                $email = Configuration::get('oblio_api_email');
-                $secret = Configuration::get('oblio_api_secret');
-                $api = new EnovateApi($email, $secret, $accessTokenHandler);
+                $apiKey = Configuration::get('enovate_api_key');
+                $api = new EnovateApi($apiKey, $accessTokenHandler);
 
                 $result = $api->createProducts($batch);
 
@@ -622,4 +616,119 @@ class Enovate extends Module
         return true;
     }
 
+    public function syncPrices(&$error = '')
+    {
+        $apiKey = Configuration::get('enovate_api_key');
+
+        if (!$apiKey) {
+            return 0;
+        }
+
+        $total = 0;
+        $updated = 0;
+        $notFound = 0;
+
+        try {
+            require_once 'classes/EnovateProducts.php';
+            require_once 'classes/EnovateApi.php';
+            require_once 'classes/EnovateApiPrestashopAccessTokenHandler.php';
+            $accessTokenHandler = new EnovateApiPrestashopAccessTokenHandler();
+            $api = new EnovateApi($apiKey, $accessTokenHandler);
+
+            $offset = 0;
+            $limitPerPage = 200;
+
+            $model = new EnovateProducts();
+            do {
+                if ($offset > 0) {
+                    usleep(200000);
+                }
+                $products = $api->nomenclature('getPricesFromMentor', null, [
+                    'offset'      => $offset,
+                ]);
+                $index = 0;
+
+                foreach ($products as $product) {
+                    $post = $model->find($product);
+                    if ($post) {
+                        $model->updatePrice($post->id, $product);
+                        $updated++;
+                    } else {
+                        $notFound++;
+                        // $model->insert($product);
+                    }
+                    $index++;
+                }
+                $offset += $limitPerPage; // next page
+            } while ($index === $limitPerPage);
+            $total = $offset - $limitPerPage + $index;
+        } catch (Exception $e) {
+            $error = $e->getMessage();
+            // $accessTokenHandler->clear();
+        }
+
+        return [
+            'total' => $total,
+            'updated' => $updated,
+            'notFound' => $notFound
+        ];
+    }
+
+    public function syncStock(&$error = '')
+    {
+        $apiKey = Configuration::get('enovate_api_key');
+
+        if (!$apiKey) {
+            return 0;
+        }
+
+        $total = 0;
+        $updated = 0;
+        $notFound = 0;
+
+        try {
+            require_once 'classes/EnovateProducts.php';
+            require_once 'classes/EnovateApi.php';
+            require_once 'classes/EnovateApiPrestashopAccessTokenHandler.php';
+            $accessTokenHandler = new EnovateApiPrestashopAccessTokenHandler();
+            $api = new EnovateApi($apiKey, $accessTokenHandler);
+
+            $offset = 0;
+            $limitPerPage = 200;
+
+            $model = new EnovateProducts();
+            do {
+                if ($offset > 0) {
+                    usleep(200000);
+                }
+                $products = $api->nomenclature('getStockFromMentor', null, [
+                    'offset'      => $offset,
+                ]);
+                $index = 0;
+
+                foreach ($products as $product) {
+                    $post = $model->find($product);
+                    if ($post) {
+                        $model->updateStock($post->id, $product);
+                        $updated++;
+                    } else {
+                        $notFound++;
+                        // $model->insert($product);
+                    }
+                    $index++;
+                }
+                $offset += $limitPerPage; // next page
+            } while ($index === $limitPerPage);
+            $total = $offset - $limitPerPage + $index;
+        } catch (Exception $e) {
+            $error = $e->getMessage();
+            // $accessTokenHandler->clear();
+        }
+
+        return [
+            'total' => $total,
+            'updated' => $updated,
+            'notFound' => $notFound
+        ];
+    }
 }

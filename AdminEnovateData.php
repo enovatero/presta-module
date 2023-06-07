@@ -19,7 +19,7 @@ class AdminEnovateData extends ModuleAdminController
         srand(time());
 		$this->context->smarty->assign(array(
 			'btnName'       => 'Sincronizare',
-			'secret'        => Configuration::get('oblio_api_secret'),
+			'apiKey'        => Configuration::get('enovate_api_key'),
 			'cron_minute'   => $minute,
 		));
 		$this->setTemplate('view.tpl');
@@ -45,17 +45,19 @@ class AdminEnovateData extends ModuleAdminController
                 $this->module->exportProducts();
                 break;
             case 'sync_stock':
-                $this->module->syncStock();
+                $response = $this->module->syncStock($error);
+                echo json_encode([$response, $error]);
                 break;
             case 'sync_prices':
-                $this->module->syncPrices();
+                $response = $this->module->syncPrices($error);
+                echo json_encode([$response, $error]);
                 break;
             case 'sync_products':
                 $this->module->syncProducts();
                 break;
             default:
-                $total = $this->module->syncStock($error);
-                echo json_encode([$total, $error]);
+//                $total = $this->module->syncStock($error);
+                echo json_encode([[], '']);
         }
     }
 }

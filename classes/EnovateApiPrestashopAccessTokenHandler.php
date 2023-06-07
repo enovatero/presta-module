@@ -1,7 +1,7 @@
 <?php
 
 class EnovateApiPrestashopAccessTokenHandler implements EnovateApiAccessTokenHandlerInterface {
-    private $_key = 'oblio_api_access_token';
+    private $_key = 'enovate_api_key';
     
     public function get() {
         $accessTokenJson = Configuration::get($this->_key);

@@ -44,7 +44,7 @@ $(document).ready(function() {
                 if (data[1]) {
                     addMessage(data[1], 'danger');
                 } else {
-                    addMessage(`A fost sincronizat stocul pentru ${data[0]} produse`, 'success');
+                    addMessage(`pentru <b>${data[0]['updated']}</b> produse a fost sincronizat stocul<br>${data[0]['total']} produse gasite in WME<br>${data[0]['notFound']} produse nu au fost gasite in catalog`, 'success');
                 }
                 self.find('i').attr('class', 'icon-file');
             }
@@ -61,7 +61,7 @@ $(document).ready(function() {
                 if (data[1]) {
                     addMessage(data[1], 'danger');
                 } else {
-                    addMessage(`Au fost sincronizate preturile pentru ${data[0]} produse`, 'success');
+                    addMessage(`pentru <b>${data[0]['updated']}</b> produse au fost sincronizare preturile<br>${data[0]['total']} produse gasite in WME<br>${data[0]['notFound']} produse nu au fost gasite in catalog`, 'success');
                 }
                 self.find('i').attr('class', 'icon-file');
             }
