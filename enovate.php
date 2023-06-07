@@ -25,7 +25,7 @@ class Enovate extends Module
     {
         $this->name = 'enovate';
         $this->tab = 'billing_invoicing';
-        $this->version = '1.0.1';
+        $this->version = '1.0.2';
         $this->author = 'spiderr';
         $this->need_instance = 1;
         $this->ps_versions_compliancy = array('min' => '1.6', 'max' => _PS_VERSION_);
