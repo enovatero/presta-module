@@ -603,7 +603,7 @@ class Enovate extends Module
             $newRecords[] = [
                 'id_product' => $item['id'],
                 'status'     => 1,
-                'wme_number' => $item['id']
+                'wme_number' => $item['code']
             ];
         }
 
@@ -763,8 +763,9 @@ class Enovate extends Module
             );
             $product_tax_calculator = $tax_manager->getTaxCalculator();
 
-            $enovateProduct = new EnovateProductDTO();
+            $enovateProduct = new EnovateProductPriceDTO();
             $enovateProduct->setId($product->id);
+            $enovateProduct->setCode($product->reference);
             $enovateProduct->setPrice(Product::getPriceStatic($product->id, true, null, 2));
 
             $batch[] = $serializer->normalize($enovateProduct);
@@ -789,18 +790,16 @@ class Enovate extends Module
                 $accessTokenHandler = new EnovateApiPrestashopAccessTokenHandler();
                 $apiKey = Configuration::get('enovate_api_key');
                 $api = new EnovateApi($apiKey, $accessTokenHandler);
+                $errors = null;
 
-                foreach ($batch as $item){
-                    $result = $api->sendPrice($item);
+                $result = $api->sendPrices($batch);
 
-                    if ($result['status'] == 'error') {
-                        $message = json_decode($result['message']);
-                        $error = implode('<br>', $message->ErrorList);
-                    } else {
-                        $this->updateEnovateProducts($batch);
-                    }
+                if (!empty($result['errors'])) {
+                    $errors = implode('<br>', $result['errors']);
+                } else {
                     $this->updateEnovateProducts($batch);
                 }
+//                $this->updateEnovateProducts($batch);
 
             } catch (Exception $e) {
                 $error = $e->getMessage();
@@ -808,6 +807,6 @@ class Enovate extends Module
             }
         }
 
-        echo json_encode([$response, ($error ?? null)]);
+        echo json_encode([$result['data'], $errors, ($error ?? null)]);
     }
 }

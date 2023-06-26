@@ -123,9 +123,9 @@ class EnovateApi {
         return $this->_createProducts($data);
     }
 
-    public function sendPrice(array $data): ?array
+    public function sendPrices(array $data): ?array
     {
-        return $this->_sendPrice($data);
+        return $this->_sendPrices($data);
     }
 
     public function createProductInvoice(array $data): array {
@@ -276,7 +276,7 @@ class EnovateApi {
         return json_decode($request->getResponse(), true);
     }
 
-    protected function _sendPrice(array $data): ?array
+    protected function _sendPrices(array $data): ?array
     {
         $request = $this->_getAuthorization();
         $request->rawPost($this->_baseURL . '/api/sendPricesToMentor', json_encode($data));

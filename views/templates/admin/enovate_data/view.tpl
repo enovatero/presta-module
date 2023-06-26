@@ -53,7 +53,7 @@ $(document).ready(function() {
                 if (data[1]) {
                     addMessage(data[1], 'danger');
                 } else {
-                    addMessage(`pentru <b>${data[0]['updated']}</b> produse a fost sincronizat stocul<br>${data[0]['total']} produse gasite in WME<br>${data[0]['notFound']} produse nu au fost gasite in catalog`, 'success');
+                    addMessage(`pentru <b>${data[0]['updated']}</b> produse a fost sincronizat stocul<br>${data[0]['total']} produse gasite in WME<br>${data[0]['notFound']} produse nu au fost gasite in catalogul Presta`, 'success');
                 }
                 self.find('i').attr('class', 'icon-file');
             }
@@ -70,7 +70,7 @@ $(document).ready(function() {
                 if (data[1]) {
                     addMessage(data[1], 'danger');
                 } else {
-                    addMessage(`pentru <b>${data[0]['updated']}</b> produse au fost sincronizare preturile<br>${data[0]['total']} produse gasite in WME<br>${data[0]['notFound']} produse nu au fost gasite in catalog`, 'success');
+                    addMessage(`pentru <b>${data[0]['updated']}</b> produse au fost sincronizare preturile<br>${data[0]['total']} produse gasite in WME<br>${data[0]['notFound']} produse nu au fost gasite in catalogul Presta`, 'success');
                 }
                 self.find('i').attr('class', 'icon-file');
             }
@@ -105,13 +105,23 @@ $(document).ready(function() {
             url: ajaxLink + '&type=send_prices',
             dataType: 'json',
             success: function(data) {
-                if (data[1]) {
-                    addMessage(data[1], 'danger');
+                console.log(data);
+                if (data[2]) {
+                    addMessage(data[2], 'danger');
                 } else {
-                    if (data[0] == 0) {
+                    if (data[0]['total'] == 0) {
                         addMessage(`Nu au fost gasite produse care necesita sincronizare`, 'warning');
                     } else {
-                        addMessage(`Au fost sincronizate ${data[0]} produse`, 'success');
+                        var output = '';
+                        output += `Au fost procesate ${data[0]['total']} produse<br>`;
+                        output += `${data[0]['success']} au fost trimise cu success<br>`;
+                        if (data[0]['errors'] > 0) {
+                            output += `${data[0]['errors']} au avut erori<br>`;
+                            addMessage(output, 'warning');
+                            addMessage(`${data[1]}`, 'danger', true);
+                        } else {
+                            addMessage(output, 'success');
+                        }
                     }
                 }
                 self.find('i').attr('class', 'icon-file');
@@ -119,13 +129,17 @@ $(document).ready(function() {
         });
     });
     
-    function addMessage(message, type) {
+    function addMessage(message, type, append = false) {
         var response = $('#enovate_message'), html = '';
         html = '<div class="alert alert-' + type + ' alert-dismissible" role="alert">\
           <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>\
           ' + message + '\
-        </div>';
-        response.html(html);
+        </div>'
+        if(append) {
+            response.append(html);
+        } else {
+            response.html(html);
+        }
     }
 });
 {/literal}

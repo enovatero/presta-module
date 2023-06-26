@@ -1,5 +1,6 @@
 <?php
 require_once 'EnovateProductDTO.php';
+require_once 'EnovateProductPriceDTO.php';
 
 class EnovateProducts {
     /**
@@ -9,14 +10,14 @@ class EnovateProducts {
      */
     public function find($data) {
         $id_product = 0;
-        if (strlen($data['id']) > 0) {
+        if (strlen($data['code']) > 0) {
             $sql = "SELECT id_product FROM `" . _DB_PREFIX_ . "product`
-                    WHERE `reference`='" . pSQL($data['id']) . "'";
+                    WHERE `reference`='" . pSQL($data['code']) . "'";
             $id_product = (int) Db::getInstance()->getValue($sql);
             
             if ($id_product === 0) {
                 $sql = "SELECT id_product FROM `" . _DB_PREFIX_ . "product_attribute`
-                        WHERE `reference`='" . pSQL($data['id']) . "'";
+                        WHERE `reference`='" . pSQL($data['code']) . "'";
                 $id_product = (int) Db::getInstance()->getValue($sql);
             }
         }
@@ -105,23 +106,22 @@ class EnovateProducts {
                     $obj = new Combination($combinationId);
                     
                     $obj->setFieldsToUpdate(array(
-                        // 'price'     => true,
-                        'quantity'  => true,
+                         'price'     => true,
+//                        'quantity'  => true,
                     ));
                     
-                    // $obj->price    = $this->getPrice($data);
-                    $obj->quantity = isset($data['quantity']) ? $data['quantity'] : 0;
-                    
-                    $quantity = $obj->quantity;
+                    $obj->price    = $this->getPrice($data);
+//                    $obj->quantity = isset($data['quantity']) ? $data['quantity'] : 0;
+//                    $quantity = $obj->quantity;
                     
                     $obj->save();
                     break;
                 }
             }
         }
-        // if ($product->update()) {
-            StockAvailable::setQuantity((int)$product->id, $combinationId, $quantity, Context::getContext()->shop->id);
-        // }
+//         if ($product->update()) {
+//            StockAvailable::setQuantity((int)$product->id, $combinationId, $quantity, Context::getContext()->shop->id);
+//         }
         return true;
     }
 
@@ -173,10 +173,10 @@ class EnovateProducts {
      *  @return float
      */
     public function getPrice($data) {
-        $price = $data['price'];
-        if ((int) $data['vatIncluded'] === 1) {
-            $price /= 1 + $data['vatPercentage'] / 100;
-        }
+        $price = (float)$data['price'];
+//        if ((int) $data['vatIncluded'] === 1) {
+//            $price /= 1 + $data['vatPercentage'] / 100;
+//        }
         return round($price, 6);
     }
     
@@ -206,6 +206,18 @@ class EnovateProducts {
                     ON (pl.`id_product` = p.`id_product` AND pl.id_shop ='.Context::getContext()->shop->id.' AND pl.`id_lang` = '.Context::getContext()->language->id.')
                 LEFT JOIN `'._DB_PREFIX_. 'enovate_products` envp ON envp.id_product = p.id_product AND envp.status = 1
                 WHERE envp.id IS NULL
+                GROUP BY pl.`id_product`';
+        return Db::getInstance()->executeS($sql);
+    }
+
+    public function getAllSynced() {
+        $sql = 'SELECT DISTINCT pl.`name`, p.`id_product`, p.`reference`, pl.`id_shop`
+                FROM `'._DB_PREFIX_.'product` p
+                LEFT JOIN `'._DB_PREFIX_.'product_shop` ps ON (ps.id_product = p.id_product AND ps.id_shop ='.Context::getContext()->shop->id.')
+                LEFT JOIN `'._DB_PREFIX_.'product_lang` pl
+                    ON (pl.`id_product` = p.`id_product` AND pl.id_shop ='.Context::getContext()->shop->id.' AND pl.`id_lang` = '.Context::getContext()->language->id.')
+                LEFT JOIN `'._DB_PREFIX_. 'enovate_products` envp ON envp.id_product = p.id_product AND envp.status = 1
+                WHERE envp.id IS NOT NULL
                 GROUP BY pl.`id_product`';
         return Db::getInstance()->executeS($sql);
     }
