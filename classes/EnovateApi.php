@@ -123,6 +123,11 @@ class EnovateApi {
         return $this->_createProducts($data);
     }
 
+    public function sendPrice(array $data): ?array
+    {
+        return $this->_sendPrice($data);
+    }
+
     public function createProductInvoice(array $data): array {
         return $this->_createDoc('product', $data);
     }
@@ -266,6 +271,15 @@ class EnovateApi {
     {
         $request = $this->_getAuthorization();
         $request->rawPost($this->_baseURL . '/api/sendProductsToMentor', json_encode($data));
+        $this->_checkErrorResponse($request);
+
+        return json_decode($request->getResponse(), true);
+    }
+
+    protected function _sendPrice(array $data): ?array
+    {
+        $request = $this->_getAuthorization();
+        $request->rawPost($this->_baseURL . '/api/sendPricesToMentor', json_encode($data));
         $this->_checkErrorResponse($request);
 
         return json_decode($request->getResponse(), true);

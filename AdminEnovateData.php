@@ -55,6 +55,9 @@ class AdminEnovateData extends ModuleAdminController
             case 'sync_products':
                 $this->module->syncProducts();
                 break;
+            case 'sendPrices':
+                $this->module->sendPrice();
+                break;
             default:
 //                $total = $this->module->syncStock($error);
                 echo json_encode([[], '']);

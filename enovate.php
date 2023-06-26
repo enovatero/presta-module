@@ -6,7 +6,7 @@ if (!defined('_PS_VERSION_')) {
 
 class Enovate extends Module
 {
-    private bool $_ps_new_style = false;
+    private $_ps_new_style = false;
 
     private $_table_orders             = 'enovate_orders';
     private $_table_products           = 'enovate_products';
@@ -730,5 +730,84 @@ class Enovate extends Module
             'updated' => $updated,
             'notFound' => $notFound
         ];
+    }
+
+    public function sendPrices()
+    {
+        require_once 'classes/EnovateProducts.php';
+        $model = new EnovateProducts();
+        $encoders = [new \Symfony\Component\Serializer\Encoder\JsonEncoder()];
+        $normalizers = [new \Symfony\Component\Serializer\Normalizer\ObjectNormalizer()];
+
+        $serializer = new \Symfony\Component\Serializer\Serializer($normalizers, $encoders);
+
+        $items = $model->getAllSynced();
+
+        $context = Context::getContext();
+        $id_shop = $context->shop->id;
+        $id_lang = $context->language->id;
+
+        // retrieve address information
+        $address = new Address();
+        $address->id_country = $context->country->id;
+        $address->id_state = 0;
+        $address->postcode = 0;
+
+        $batch = [];
+
+        foreach ($items as $item) {
+            $product = new Product($item['id_product'], false, $id_lang);
+            $tax_manager = TaxManagerFactory::getManager(
+                $address,
+                Product::getIdTaxRulesGroupByIdProduct((int)$item['id_product'], $context)
+            );
+            $product_tax_calculator = $tax_manager->getTaxCalculator();
+
+            $enovateProduct = new EnovateProductDTO();
+            $enovateProduct->setId($product->id);
+            $enovateProduct->setPrice(Product::getPriceStatic($product->id, true, null, 2));
+
+            $batch[] = $serializer->normalize($enovateProduct);
+
+//            $combinations = $this->getCombinations($product->id, $id_lang);
+//            if (!empty($combinations)) {
+//                foreach ($combinations as $combination) {
+//
+//                    $line[0] = $product->name . $combination['attribute_designation'];
+//                    $line[2] = $combination['reference'];
+//                    $line[3] = $combination['quantity'];
+//                }
+//            }
+        }
+
+        $response = count($batch);
+
+        if ($response > 0) {
+            try {
+                require_once 'classes/EnovateApi.php';
+                require_once 'classes/EnovateApiPrestashopAccessTokenHandler.php';
+                $accessTokenHandler = new EnovateApiPrestashopAccessTokenHandler();
+                $apiKey = Configuration::get('enovate_api_key');
+                $api = new EnovateApi($apiKey, $accessTokenHandler);
+
+                foreach ($batch as $item){
+                    $result = $api->sendPrice($item);
+
+                    if ($result['status'] == 'error') {
+                        $message = json_decode($result['message']);
+                        $error = implode('<br>', $message->ErrorList);
+                    } else {
+                        $this->updateEnovateProducts($batch);
+                    }
+                    $this->updateEnovateProducts($batch);
+                }
+
+            } catch (Exception $e) {
+                $error = $e->getMessage();
+                // $accessTokenHandler->clear();
+            }
+        }
+
+        echo json_encode([$response, ($error ?? null)]);
     }
 }

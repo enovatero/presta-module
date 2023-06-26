@@ -2,7 +2,7 @@
 <div id="enovate_message"></div>
 
 <div class="panel">
-    <div class="panel-heading">Sincronizare preturi</div>
+    <div class="panel-heading">Sincronizare preturi WME->PRESTA</div>
     <p>Aceasta actiune iti permite sa sincronizezi preturile din WinMentor catre Presta.</p>
     <a id="enovate_update_prices" class="btn btn-default" href="">
       <i class="icon-file"></i>
@@ -23,6 +23,15 @@
     <div class="panel-heading">Sincronizare produse</div>
     <p>Aceasta actiune iti permite sa sincronizezi produsele din Presta catre WinMentor.</p>
     <a id="enovate_update_products" class="btn btn-default" href="">
+        <i class="icon-file"></i>
+        {$btnName}
+    </a>
+</div>
+
+<div class="panel">
+    <div class="panel-heading">Sincronizare preturi PRESTA->WME</div>
+    <p>Aceasta actiune iti permite sa sincronizezi preturile din Presta catre WinMentor.</p>
+    <a id="enovate_send_prices" class="btn btn-default" href="">
         <i class="icon-file"></i>
         {$btnName}
     </a>
@@ -73,6 +82,27 @@ $(document).ready(function() {
         e.preventDefault();
         $.ajax({
             url: ajaxLink + '&type=sync_products',
+            dataType: 'json',
+            success: function(data) {
+                if (data[1]) {
+                    addMessage(data[1], 'danger');
+                } else {
+                    if (data[0] == 0) {
+                        addMessage(`Nu au fost gasite produse care necesita sincronizare`, 'warning');
+                    } else {
+                        addMessage(`Au fost sincronizate ${data[0]} produse`, 'success');
+                    }
+                }
+                self.find('i').attr('class', 'icon-file');
+            }
+        });
+    });
+    $('#enovate_send_prices').click(function(e) {
+        var self = $(this);
+        self.find('i').attr('class', 'icon-circle-o-notch icon-spin');
+        e.preventDefault();
+        $.ajax({
+            url: ajaxLink + '&type=send_prices',
             dataType: 'json',
             success: function(data) {
                 if (data[1]) {

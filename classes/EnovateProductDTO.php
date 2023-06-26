@@ -2,12 +2,12 @@
 
 class EnovateProductDTO {
 
-    private int $id;
-    private string $name;
-    private string $code;
-    private string $um;
-    private float $vatRate;
-    private float $price;
+    private $id;
+    private $name;
+    private $code;
+    private $um;
+    private $vatRate;
+    private $price;
 
     public function getId(): int
     {

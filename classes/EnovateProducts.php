@@ -142,7 +142,7 @@ class EnovateProducts {
             $quantity = $product->quantity;
         } else {
             foreach ($combinations as $combination) {
-                if ($combination['reference'] === $data['id']) {
+                if ($combination['reference'] === $data['code']) {
                     $combinationId = (int) $combination['id_product_attribute'];
                     $obj = new Combination($combinationId);
 
