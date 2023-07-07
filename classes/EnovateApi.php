@@ -89,8 +89,8 @@ require_once 'CurlWrapper.php';
 class EnovateApi {
     protected $_apiKey              = '';
     protected $_accessTokenHandler  = null;
-//    protected $_baseURL             = 'http://medaz.dev.enovate.ro';
-    protected $_baseURL             = 'http://medaz.loc';
+    protected $_baseURL             = 'http://medaz.dev.enovate.ro';
+//    protected $_baseURL             = 'http://medaz.loc';
 
 
     /**
