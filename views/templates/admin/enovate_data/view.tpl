@@ -37,6 +37,14 @@
     </a>
 </div>
 
+<div class="panel">
+    <div class="panel-heading">Generare cuduri de referinta automate</div>
+    <a id="enovate_generate_reference" class="btn btn-default" href="">
+        <i class="icon-file"></i>
+        Generare coduri de referinta
+    </a>
+</div>
+
 <script type="text/javascript">
 "use strict";
 var ajaxLink = "{$link->getAdminLink('AdminEnovateData')|escape:'UTF-8'}&action=ajax";
@@ -84,15 +92,34 @@ $(document).ready(function() {
             url: ajaxLink + '&type=sync_products',
             dataType: 'json',
             success: function(data) {
-                if (data[1]) {
-                    addMessage(data[1], 'danger');
+                if (data[2]) {
+                    addMessage(data[2], 'danger');
                 } else {
-                    if (data[0] == 0) {
+                    if (data[0]['totalValid'] == 0) {
                         addMessage(`Nu au fost gasite produse care necesita sincronizare`, 'warning');
                     } else {
-                        addMessage(`Au fost sincronizate ${data[0]} produse`, 'success');
+                        var output = '';
+                        output += `Au fost procesate ${data[0]['total']} produse<br>`;
+                        output += `${data[0]['success']} au fost trimise cu success<br>`;
+                        if (data[0]['errors'] > 0) {
+                            output += `${data[0]['errors']} au avut erori<br>`;
+                            addMessage(output, 'warning');
+                            addMessage(`${data[1]}`, 'danger', true);
+                        } else {
+                            addMessage(output, 'success');
+                        }
                     }
                 }
+
+                // if (data[1]) {
+                //     addMessage(data[1], 'danger');
+                // } else {
+                //     if (data[0] == 0) {
+                //         addMessage(`Nu au fost gasite produse care necesita sincronizare`, 'warning');
+                //     } else {
+                //         addMessage(`Au fost sincronizate ${data[0]} produse`, 'success');
+                //     }
+                // }
                 self.find('i').attr('class', 'icon-file');
             }
         });
@@ -123,6 +150,24 @@ $(document).ready(function() {
                             addMessage(output, 'success');
                         }
                     }
+                }
+                self.find('i').attr('class', 'icon-file');
+            }
+        });
+    });
+
+    $('#enovate_generate_reference').click(function(e) {
+        var self = $(this);
+        self.find('i').attr('class', 'icon-circle-o-notch icon-spin');
+        e.preventDefault();
+        $.ajax({
+            url: ajaxLink + '&type=generate_reference',
+            dataType: 'json',
+            success: function(data) {
+                if (data[1]) {
+                    addMessage(data[1], 'danger');
+                } else {
+                    addMessage('Au fost genarate codurile de referinta lipsa', 'success');
                 }
                 self.find('i').attr('class', 'icon-file');
             }

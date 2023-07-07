@@ -10,6 +10,9 @@ class Enovate extends Module
 
     private $_table_orders             = 'enovate_orders';
     private $_table_products           = 'enovate_products';
+    private $_table_customers          = 'enovate_customers';
+    private $_table_customer_addresses = 'enovate_customer_addresses';
+
     const PS_OS_NAME = 'PS_OS_ENOVATE';
     const INVOICE    = 1;
     const PROFORMA   = 2;
@@ -50,7 +53,7 @@ class Enovate extends Module
             parent::install()
             && Configuration::updateValue('enovate_api_key', 'enovateSecret')
             && $this->installDb()
-//            && $this->registerHook('displayAdminOrderMainBottom')
+            && $this->registerHook('displayAdminOrderMainBottom')
             && $this->installTab();
     }
 
@@ -65,7 +68,7 @@ class Enovate extends Module
     private function uninstallTab()
     {
         $tabs = [
-//            'AdminEnovateMentor',
+            'AdminEnovateOrder',
             'AdminEnovateData'
         ];
         foreach ($tabs as $tab) {
@@ -81,11 +84,11 @@ class Enovate extends Module
     private function installTab()
     {
         $tabs = [
-//            [
-//                'name'   => $this->name,
-//                'class'  => 'AdminEnovateOrder',
-//                'parent' => -1
-//            ],
+            [
+                'name'   => $this->name,
+                'class'  => 'AdminEnovateOrder',
+                'parent' => -1
+            ],
             [
                 'name'   => 'Sincronizare ENOVATE',
                 'class'  => 'AdminEnovateData',
@@ -116,11 +119,11 @@ class Enovate extends Module
     {
         $sql = sprintf('SELECT * FROM ' . _DB_PREFIX_ . $this->_table_orders . ' WHERE `id_order`=%d', $id_order);
         $invoice = Db::getInstance()->getRow($sql);
-        if ($invoice) {
-            $sql = 'SELECT MAX(`invoice_number`) AS last_invoice_number FROM ' . _DB_PREFIX_ . $this->_table_orders;
-            $last_number = Db::getInstance()->getRow($sql);
-            $invoice['invoice_is_last'] = $last_number['last_invoice_number'] === $invoice['invoice_number'];
-        }
+//        if ($invoice) {
+//            $sql = 'SELECT MAX(`invoice_number`) AS last_invoice_number FROM ' . _DB_PREFIX_ . $this->_table_orders;
+//            $last_number = Db::getInstance()->getRow($sql);
+//            $invoice['invoice_is_last'] = $last_number['last_invoice_number'] === $invoice['invoice_number'];
+//        }
         return $invoice;
     }
 
@@ -132,11 +135,11 @@ class Enovate extends Module
             'id_order'      => $data['id_order'],
             '_ps_new_style' => $this->_ps_new_style,
             'enovate'       => [
-                'invoice_series'   => $invoice ? $invoice['invoice_series'] : '',
-                'invoice_number'   => $invoice ? $invoice['invoice_number'] : '',
-                'invoice_is_last'  => $invoice ? $invoice['invoice_is_last'] : 0,
+                'invoice_series'   => $invoice ? (!empty($invoice['invoice_series']) ? $invoice['invoice_series'] : '') : '',
+                'invoice_number'   => $invoice ? $invoice['wme_code'] : '',
+                'invoice_is_last'  => $invoice ? (!empty($invoice['invoice_is_last']) ? $invoice['invoice_is_last'] : 0) : 0,
                 'has_stock_active' => strval(Configuration::get('oblio_company_management')) !== '',
-                'is_last'          => $invoice ? $invoice['invoice_is_last'] : 0,
+                'is_last'          => $invoice ? (!empty($invoice['invoice_is_last']) ? $invoice['invoice_is_last'] : 0) : 0,
             ]
         ]);
 
@@ -145,16 +148,10 @@ class Enovate extends Module
 
     public function sendOrderToMentor($order, $options = [])
     {
-        return array();
 //        dd($order);
         if (!$order) {
             return array();
         }
-        $cui = Configuration::get('oblio_company_cui');
-        $email = Configuration::get('oblio_api_email');
-        $secret = Configuration::get('oblio_api_secret');
-        $workstation = Configuration::get('oblio_company_workstation');
-        $management = Configuration::get('oblio_company_management');
 
         $exclude_reference = array();
         $oblio_exclude_reference = Configuration::get('oblio_exclude_reference');
@@ -162,7 +159,7 @@ class Enovate extends Module
             $exclude_reference = array_map('trim', explode(',', $oblio_exclude_reference));
         }
         $oblio_product_category_on_invoice = (bool)Configuration::get('oblio_product_category_on_invoice');
-        $oblio_product_discount_included = (bool)Configuration::get('oblio_product_discount_included');
+        $oblio_product_discount_included = true; (bool)Configuration::get('oblio_product_discount_included');
         $oblio_company_products_type = strval(Configuration::get('oblio_company_products_type'));
         $oblio_generate_email_state = strval(Configuration::get('oblio_generate_email_state'));
 
@@ -172,7 +169,7 @@ class Enovate extends Module
             'deputy_name',
             'deputy_identity_card',
             'deputy_auto',
-            'seles_agent',
+            'sales_agent',
             'mentions'
         ];
         foreach ($fields as $field) {
@@ -218,9 +215,12 @@ class Enovate extends Module
 //            ];
 //        }
 
+        require_once 'classes/EnovateProducts.php';
         require_once 'classes/EnovateApi.php';
         require_once 'classes/EnovateApiPrestashopAccessTokenHandler.php';
-        require_once 'classes/WMEProductDTO.php';
+        $apiKey = Configuration::get('enovate_api_key');
+
+//        require_once 'classes/WMEProductDTO.php';
 
         $row = $this->getInvoice($order->id, $options);
         if (!empty($row['invoice_number'])) {
@@ -245,11 +245,22 @@ class Enovate extends Module
         $currency = new Currency($order->id_currency);
         $products = $order->getCartProducts();
 //        dd($order->getDetails);
+
         try {
+            $api = new EnovateApi($apiKey, new EnovateApiPrestashopAccessTokenHandler());
+
             $contact = $address->firstname . ' ' . $address->lastname;
             $cuiClient = empty($address->vat_number) ? $address->dni : $address->vat_number;
             if ($cuiClient === 'dni') {
                 $cuiClient = '';
+            }
+
+            if(!empty($cuiClient) && !$this->isValidCIF($cuiClient)) {
+                return[
+                    'status' => 'error',
+                    'data' => null,
+                    'error' => 'CIF invalid!'
+                ];
             }
 
             $rc = '';
@@ -265,13 +276,17 @@ class Enovate extends Module
                 }
             }
 
-            $data = array(
-                'cif'                => $cui,
-                'client'             => [
+            $computedCustomerCode = null;
+
+            require_once 'classes/EnovateCustomers.php';
+            $enovateCustomer = new EnovateCustomers();
+            $wmeCustomerCode = $enovateCustomer->findWmeCustomerCode($customer->id);
+
+            if (!$wmeCustomerCode) {
+                $clientData = [
                     'cif'      => $cuiClient,
                     'name'     => empty(trim($address->company)) ? $contact : $address->company,
                     'rc'       => $rc,
-                    'code'     => '',
                     'address'  => $invoiceAddress,
                     'state'    => State::getNameById($address->id_state),
                     'city'     => $address->city,
@@ -282,8 +297,43 @@ class Enovate extends Module
                     'phone'    => $address->phone == '' ? $address->phone_mobile : $address->phone,
                     'contact'  => $contact,
                     'vatPayer' => preg_match('/RO/i', $cuiClient),
-                    'save'     => true,
-                ],
+                ];
+                $resultClient = $api->sendCustomer($clientData);
+
+                if ($resultClient['status'] == 'success') {
+                    $enovateCustomerData = [
+                        'customerId'   => $customer->id,
+                        'customerCode' => $resultClient['data']['customer_code'],
+                        'wmeCode'      => $resultClient['data']['wme_code']
+                    ];
+                    $this->updateEnovateCustomer($enovateCustomerData);
+
+                    $computedCustomerCode = $resultClient['data']['customer_code'];
+                } else {
+                    if (strpos($resultClient['error']['Error'], 'Exista deja un partener') !== false) {
+                        $foundCustomerCode = explode(' : ', $resultClient['error']['Error']);
+                        $foundCustomerCode = $foundCustomerCode[1];
+                        $enovateCustomerData = [
+                            'customerId'   => $customer->id,
+                            'customerCode' => $foundCustomerCode,
+                            'wmeCode'      => null
+                        ];
+                        $this->updateEnovateCustomer($enovateCustomerData);
+                        $computedCustomerCode = $foundCustomerCode;
+                    } else {
+                        return [
+                            'status'  => 'error',
+                            'data' => null,
+                            'error'   => $resultClient['error']
+                        ];
+                    }
+                }
+            } else {
+                $computedCustomerCode = $wmeCustomerCode;
+            }
+
+            $data = array(
+                'client'             => $computedCustomerCode,
                 'issueDate'          => date('Y-m-d'),
                 'dueDate'            => '',
                 'deliveryDate'       => '',
@@ -301,10 +351,9 @@ class Enovate extends Module
                 'deputyName'         => $deputy_name,
                 'deputyIdentityCard' => $deputy_identity_card,
                 'deputyAuto'         => $deputy_auto,
-                'selesAgent'         => $seles_agent,
+                'salesAgent'         => $sales_agent,
                 'mentions'           => $mentions,
                 'value'              => 0,
-                'workStation'        => $workstation,
                 'useStock'           => isset($options['useStock']) ? (int)$options['useStock'] : 0,
                 'sendEmail'          => $oblio_generate_email_state,
                 'orderId'            => $order->id
@@ -318,6 +367,13 @@ class Enovate extends Module
                     if (!empty($exclude_reference) && in_array($item['product_reference'], $exclude_reference)) {
                         continue;
                     }
+
+//                    $wmeProduct = new EnovateProducts();
+//                    $wmeProduct->find($item['product_id']);
+//                    if (!$wmeProduct) {
+//
+//                    }
+
                     $name = $item['product_name'];
                     $code = $item['product_reference'];
                     $vatName = $item['tax_rate'] > 0 ? null : 'SDD';
@@ -353,16 +409,15 @@ class Enovate extends Module
                         'code'          => $code,
                         'description'   => '',
                         'price'         => $fullPrice / $package_number,
-                        'measuringUnit' => 'buc',
+                        'um' => 'buc',
                         'currency'      => $currency->iso_code,
                         'vatName'       => $vatName,
-                        'vatPercentage' => $item['tax_rate'],
+                        'vatRate' => $item['tax_rate'],
                         'vatIncluded'   => true,
                         'quantity'      => $item['product_quantity'] * $package_number,
                         'productType'   => $productType,
-                        'management'    => $management,
                     ];
-                    if (!$oblio_product_discount_included && $price !== $fullPrice) {
+                    if (!$oblio_product_discount_included && $price !== $fullPrice && 1==2) {
                         $totalOriginalPrice = $fullPrice * $item['product_quantity'];
                         $data['products'][] = [
                             'name'         => sprintf('Discount "%s"', $name),
@@ -377,13 +432,13 @@ class Enovate extends Module
                 if ($order->total_shipping_tax_incl > 0) {
                     $data['products'][] = [
                         'name'          => 'Transport',
-                        'code'          => '',
+                        'code'          => 'A3054115',
                         'description'   => '',
                         'price'         => $order->total_shipping_tax_incl,
-                        'measuringUnit' => 'buc',
+                        'um' => 'buc',
                         'currency'      => $currency->iso_code,
                         // 'vatName'       => 'Normala',
-                        'vatPercentage' => round(
+                        'vatRate' => round(
                                 $order->total_shipping_tax_incl / $order->total_shipping_tax_excl * 100
                             ) - 100,
                         'vatIncluded'   => true,
@@ -400,29 +455,51 @@ class Enovate extends Module
                 }
             }
 
-            $api = new EnovateApi($email, $secret, new EnovateApiPrestashopAccessTokenHandler());
 
 //            dd($data);
-            $result = $api->createInvoice($data);
+            $resultOrder = $api->createInvoice($data);
 
-            $changeState = Configuration::get('oblio_generate_change_state');
-            $state_id = (int)Configuration::get(self::PS_OS_NAME);
-            if ($changeState && $state_id) {
-                $history = new OrderHistory();
-                $history->id_order = (int)$order->id;
-                $history->id_employee = (int)$this->context->employee->id;
+            if ($resultOrder['status'] == 'success') {
+                $enovateOrderData = [
+                    'orderId'   => $order->id,
+                    'wmeCode'      => $resultOrder['data']['CodComanda']
+                ];
+                $this->updateEnovateOrder($enovateOrderData);
 
-                $use_existings_payment = !$order->hasInvoice();
-                $history->changeIdOrderState($state_id, $order, $use_existings_payment);
-                $history->addWithemail(true, []);
+                return [
+                    'status' => 'success',
+                    'data' => [
+                        'CodComanda' => $resultOrder['data']['CodComanda'],
+                        'NumarComanda' => $resultOrder['data']['NumarComanda']
+                    ]
+                ];
+            } else {
+                return [
+                    'status' => 'error',
+                    'data' => null,
+                    'error' => $resultOrder['error']
+                ];
             }
 
+//            $changeState = Configuration::get('oblio_generate_change_state');
+//            $state_id = (int)Configuration::get(self::PS_OS_NAME);
+//            if ($changeState && $state_id) {
+//                $history = new OrderHistory();
+//                $history->id_order = (int)$order->id;
+//                $history->id_employee = (int)$this->context->employee->id;
+//
+//                $use_existings_payment = !$order->hasInvoice();
+//                $history->changeIdOrderState($state_id, $order, $use_existings_payment);
+//                $history->addWithemail(true, []);
+//            }
 
-            $this->updateNumbers($order->id, [
-                $options['docType'] . '_series' => $result['data']['seriesName'],
-                $options['docType'] . '_number' => $result['data']['number'],
-            ]);
-            return $result['data'];
+
+//            $this->updateNumbers($order->id, [
+//                $options['docType'] . '_series' => $result['data']['seriesName'],
+//                $options['docType'] . '_number' => $result['data']['number'],
+//            ]);
+
+//            return $result['data'];
         } catch (Exception $e) {
             return array(
                 'error' => $e->getMessage()
@@ -434,7 +511,7 @@ class Enovate extends Module
     {
         $sql = sprintf(
             'SELECT `value` FROM %s WHERE `id_product`=%d AND `attribute`="%s"',
-            _DB_PREFIX_ . $this->_table_product_attributes,
+            _DB_PREFIX_ . $this->_table_products,
             $id_product,
             pSQL($attribute)
         );
@@ -491,29 +568,64 @@ class Enovate extends Module
         `id` int unsigned NOT NULL AUTO_INCREMENT,
         `id_order` int unsigned NOT NULL,
         `status` tinyint NOT NULL DEFAULT 0,
-        `wme_number` varchar(20) NULL DEFAULT NULL,
+        `wme_code` varchar(100) NULL DEFAULT NULL,
         `request` text NULL,
         `response` text NULL,
         `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
         `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`)
+        PRIMARY KEY (`id`),
+        UNIQUE INDEX(`id_order`)
         ) ENGINE = ' . _MYSQL_ENGINE_ . ' CHARACTER SET utf8;';
         $result_table_orders = Db::getInstance()->execute($createSql);
 
         $createSql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . $this->_table_products . '` (
         `id` int unsigned NOT NULL AUTO_INCREMENT,
         `id_product` int unsigned NOT NULL,
+        `attribute` varchar(100) NOT NULL,
+        `value` varchar(100) NOT NULL,
         `status` tinyint NOT NULL DEFAULT 0,
-        `wme_number` varchar(20) NULL DEFAULT NULL,
+        `wme_code` varchar(100) NULL DEFAULT NULL,
         `request` text NULL,
         `response` text NULL,
         `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
         `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        PRIMARY KEY (`id`)
+        PRIMARY KEY (`id`),
+        UNIQUE INDEX(`id_product`, `attribute`)
         ) ENGINE = ' . _MYSQL_ENGINE_ . ' CHARACTER SET utf8;';
         $result_table_products = Db::getInstance()->execute($createSql);
 
-        return $result_table_orders && $result_table_products;
+        $createSql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . $this->_table_customers . '` (
+        `id` int unsigned NOT NULL AUTO_INCREMENT,
+        `id_customer` int unsigned NOT NULL,
+        `status` tinyint NOT NULL DEFAULT 0,
+        `customer_code` varchar(100) NULL DEFAULT NULL,        
+        `wme_code` varchar(100) NULL DEFAULT NULL,
+        `request` text NULL,
+        `response` text NULL,
+        `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        UNIQUE INDEX(`id_customer`)
+        ) ENGINE = ' . _MYSQL_ENGINE_ . ' CHARACTER SET utf8;';
+        $result_table_customers = Db::getInstance()->execute($createSql);
+
+        $createSql = 'CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . $this->_table_customer_addresses . '` (
+        `id` int unsigned NOT NULL AUTO_INCREMENT,
+        `id_customer` int unsigned NOT NULL,
+        `id_address` int unsigned NOT NULL,
+        `status` tinyint NOT NULL DEFAULT 0,
+        `address_code` varchar(100) NULL DEFAULT NULL,
+        `wme_code` varchar(100) NULL DEFAULT NULL,
+        `request` text NULL,
+        `response` text NULL,
+        `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        UNIQUE INDEX(`id_customer`, `id_address`)
+        ) ENGINE = ' . _MYSQL_ENGINE_ . ' CHARACTER SET utf8;';
+        $result_table_customer_addresses = Db::getInstance()->execute($createSql);
+
+        return $result_table_orders && $result_table_products && $result_table_customers && $result_table_customer_addresses;
     }
 
     public function syncProducts()
@@ -531,13 +643,24 @@ class Enovate extends Module
         $id_shop = $context->shop->id;
         $id_lang = $context->language->id;
 
-        // retrieve address informations
+        // retrieve address information
         $address = new Address();
         $address->id_country = $context->country->id;
         $address->id_state = 0;
         $address->postcode = 0;
 
         $batch = [];
+        $productsWithoutRef = [];
+        $combinationsWithoutRef = [];
+
+        $total = count($items);
+        $totalValid = 0;
+        $success = 0;
+        $errors = 0;
+
+        $totalCombinations = 0;
+
+        $response = '';
 
         foreach ($items as $item) {
             $product = new Product($item['id_product'], false, $id_lang);
@@ -547,30 +670,57 @@ class Enovate extends Module
             );
             $product_tax_calculator = $tax_manager->getTaxCalculator();
 
-            $enovateProduct = new EnovateProductDTO();
-            $enovateProduct->setId($product->id);
-            $enovateProduct->setName($product->name);
-            $enovateProduct->setCode($product->reference);
-            $enovateProduct->setVatRate($product_tax_calculator->getTotalRate());
-            $enovateProduct->setUm('buc');
-            $enovateProduct->setPrice(Product::getPriceStatic($product->id, true, null, 2));
+            $combinations = $model->getCombinations($product->id, $id_lang);
+            if (!empty($combinations)) {
+                $totalCombinations += count($combinations);
+                $total += count($combinations) - 1;
 
-            $batch[] = $serializer->normalize($enovateProduct);
+                foreach ($combinations as $combination) {
+                    $enovateProduct = new EnovateProductDTO();
+                    $enovateProduct->setProductId($product->id);
+                    $enovateProduct->setProductAttributeId($combination['id_product_attribute']);
+                    $enovateProduct->setName($product->name . $combination['attribute_designation']);
+                    $enovateProduct->setCode($combination['reference']);
+                    $enovateProduct->setVatRate($product_tax_calculator->getTotalRate());
+                    $enovateProduct->setUm('buc');
+                    $enovateProduct->setPrice(Product::getPriceStatic($product->id, true, $combination['id_product_attribute'], 2));
 
-//            $combinations = $this->getCombinations($product->id, $id_lang);
-//            if (!empty($combinations)) {
-//                foreach ($combinations as $combination) {
-//
-//                    $line[0] = $product->name . $combination['attribute_designation'];
-//                    $line[2] = $combination['reference'];
-//                    $line[3] = $combination['quantity'];
-//                }
-//            }
+                    if(!empty($combination['reference'])) {
+                        $batch[] = $serializer->normalize($enovateProduct);
+                        $totalValid++;
+                    } else {
+                        $combinationsWithoutRef[] = $combination['id_product_attribute'];
+                        $errors++;
+                    }
+                }
+            } else {
+                $enovateProduct = new EnovateProductDTO();
+                $enovateProduct->setProductId($product->id);
+                $enovateProduct->setName($product->name);
+                $enovateProduct->setCode($product->reference);
+                $enovateProduct->setVatRate($product_tax_calculator->getTotalRate());
+                $enovateProduct->setUm('buc');
+                $enovateProduct->setPrice(Product::getPriceStatic($product->id, true, null, 2));
+
+                if(!empty($product->reference)) {
+                    $batch[] = $serializer->normalize($enovateProduct);
+                    $totalValid++;
+                } else {
+                    $productsWithoutRef[] = $product->id;
+                    $errors++;
+                }
+            }
+
         }
 
-        $response = count($batch);
+        foreach ($productsWithoutRef as $wr) {
+            $response .= 'Produsul cu id '.$wr.' nu are setat cod de referinta.<br>';
+        }
+        foreach ($combinationsWithoutRef as $wr) {
+            $response .= 'Produsul combinatie cu id combinatie '.$wr.' nu are setat cod de referinta.<br>';
+        }
 
-        if ($response > 0) {
+        if ($totalValid > 0) {
             try {
                 require_once 'classes/EnovateApi.php';
                 require_once 'classes/EnovateApiPrestashopAccessTokenHandler.php';
@@ -582,18 +732,47 @@ class Enovate extends Module
 
                 if ($result['status'] == 'error') {
                     $message = json_decode($result['message']);
-                    $error = implode('<br>', $message->ErrorList);
+                    $errorList = $message->ErrorList;
+
+                    for ($i=0;$i<count($message->ErrorList);$i++) {
+                        if (strpos($errorList[$i], 'exista deja in baza') !== false) {
+                            foreach ($batch as $b) {
+                                $errText = "Articolul pe care vrei sa il adaugi exista deja in baza de date.  ID : " . $b['code'];
+                                if ($errorList[$i] == $errText) {
+                                    $this->updateEnovateProducts([$b]);
+                                    $success++;
+                                }
+                            }
+                            unset($errorList[$i]);
+                        }
+                    }
+                    $errors += count($errorList);
+
+                    $response .= implode('<br>', $errorList);
                 } else {
                     $this->updateEnovateProducts($batch);
+                    $success += count($batch);
                 }
-                $this->updateEnovateProducts($batch);
+//                $this->updateEnovateProducts($batch);
+
             } catch (Exception $e) {
                 $error = $e->getMessage();
                 // $accessTokenHandler->clear();
             }
         }
 
-        echo json_encode([$response, ($error ?? null)]);
+        echo json_encode(
+            [
+                [
+                    'total' => $total,
+                    'totalValid' => $totalValid,
+                    'success' => $success,
+                    'errors' => $errors
+                ],
+                $response,
+                ($error ?? null)
+            ]
+        );
     }
 
     public function updateEnovateProducts(array $batch)
@@ -601,9 +780,10 @@ class Enovate extends Module
         $newRecords = [];
         foreach ($batch as $item) {
             $newRecords[] = [
-                'id_product' => $item['id'],
+                'id_product' => $item['productId'],
+                'attribute' => $item['productAttributeId'],
                 'status'     => 1,
-                'wme_number' => $item['code']
+                'wme_code' => $item['code']
             ];
         }
 
@@ -611,7 +791,34 @@ class Enovate extends Module
             return false;
         }
 
-        Db::getInstance()->insert($this->_table_products, $newRecords);
+        Db::getInstance()->insert($this->_table_products, $newRecords,false, false, Db::ON_DUPLICATE_KEY);
+
+        return true;
+    }
+
+    public function updateEnovateCustomer(array $data)
+    {
+        $insertData = [
+            'id_customer' => $data['customerId'],
+            'status'     => 1,
+            'customer_code' => $data['customerCode'],
+            'wme_code' => $data['wmeCode']
+        ];
+
+        Db::getInstance()->insert($this->_table_customers, $insertData,false, false, Db::ON_DUPLICATE_KEY);
+
+        return true;
+    }
+
+    public function updateEnovateOrder(array $data)
+    {
+        $insertData = [
+            'id_order' => $data['orderId'],
+            'status'     => 1,
+            'wme_code' => $data['wmeCode']
+        ];
+
+        Db::getInstance()->insert($this->_table_orders, $insertData, false, false, Db::ON_DUPLICATE_KEY);
 
         return true;
     }
@@ -763,25 +970,29 @@ class Enovate extends Module
             );
             $product_tax_calculator = $tax_manager->getTaxCalculator();
 
-            $enovateProduct = new EnovateProductPriceDTO();
-            $enovateProduct->setId($product->id);
-            $enovateProduct->setCode($product->reference);
-            $enovateProduct->setPrice(Product::getPriceStatic($product->id, true, null, 2));
+            $combinations = $model->getCombinations($product->id, $id_lang);
+            if (!empty($combinations)) {
+                foreach ($combinations as $combination) {
+                    $enovateProduct = new EnovateProductPriceDTO();
+                    $enovateProduct->setProductId($product->id);
+                    $enovateProduct->setProductAttributeId($combination['id_product_attribute']);
+                    $enovateProduct->setCode($combination['reference']);
+                    $enovateProduct->setPrice(Product::getPriceStatic($product->id, true, $combination['id_product_attribute'], 2));
 
-            $batch[] = $serializer->normalize($enovateProduct);
+                    $batch[] = $serializer->normalize($enovateProduct);
+                }
+            } else {
+                $enovateProduct = new EnovateProductPriceDTO();
+                $enovateProduct->setProductId($product->id);
+                $enovateProduct->setCode($product->reference);
+                $enovateProduct->setPrice(Product::getPriceStatic($product->id, true, null, 2));
 
-//            $combinations = $this->getCombinations($product->id, $id_lang);
-//            if (!empty($combinations)) {
-//                foreach ($combinations as $combination) {
-//
-//                    $line[0] = $product->name . $combination['attribute_designation'];
-//                    $line[2] = $combination['reference'];
-//                    $line[3] = $combination['quantity'];
-//                }
-//            }
+                $batch[] = $serializer->normalize($enovateProduct);
+            }
         }
 
         $response = count($batch);
+        $errors = null;
 
         if ($response > 0) {
             try {
@@ -790,15 +1001,20 @@ class Enovate extends Module
                 $accessTokenHandler = new EnovateApiPrestashopAccessTokenHandler();
                 $apiKey = Configuration::get('enovate_api_key');
                 $api = new EnovateApi($apiKey, $accessTokenHandler);
-                $errors = null;
 
-                $result = $api->sendPrices($batch);
+                    $subBatch = array_chunk($batch, 200);
+                    $result = [];
 
-                if (!empty($result['errors'])) {
-                    $errors = implode('<br>', $result['errors']);
-                } else {
-                    $this->updateEnovateProducts($batch);
-                }
+                    foreach ($subBatch as $sb) {
+                        $result = array_merge($api->sendPrices($sb), $result);
+
+                        if (!empty($result['errors'])) {
+                            $errors = implode('<br>', $result['errors']);
+                        } else {
+                            $this->updateEnovateProducts($sb);
+                        }
+                    }
+
 //                $this->updateEnovateProducts($batch);
 
             } catch (Exception $e) {
@@ -807,6 +1023,53 @@ class Enovate extends Module
             }
         }
 
-        echo json_encode([$result['data'], $errors, ($error ?? null)]);
+        echo json_encode([$result['data'] ?? null, $errors, ($error ?? null)]);
+    }
+
+    public function validateCif(string $cif)
+    {
+        $cif = strtoupper($cif);
+        preg_match('/RO\s*-?(\d+)/i', $cif, $matches);
+
+        if (isset($matches[1])) {
+            $result = 'RO' . $matches[1];
+            return $result; // Output: ro1234
+        } else {
+            return null;
+        }
+    }
+
+    function isValidCIF($cif)
+    {
+        preg_match('/^([\D]{2})?\s*(\d{2,10})$/', $cif, $m);
+
+        if (empty($m))
+            return false;
+
+        if (!empty($m[1]) && strtolower($m[1]) != 'ro')
+            return false;
+
+        if (!is_numeric($m[2]))
+            return false;
+
+//        $key  = str_split(strrev('753217532'));
+//        $cui  = str_split(strrev($m[2]));
+//        $chk  = array_shift($cui);
+//
+//        $h  = 0;
+//        foreach($cui as $k => $e){
+//            $h  += $e * $key[$k];
+//        }
+//
+//        return ($h*10)%11 == $chk;
+
+        return true;
+    }
+
+    public function regerateReferenceIfNeeded()
+    {
+        require_once 'classes/EnovateProducts.php';
+        $model = new EnovateProducts();
+        return $model->regerateReferenceIfNeeded();
     }
 }

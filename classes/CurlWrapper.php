@@ -391,6 +391,8 @@ class CurlWrapper
             $this->addRequestParam($requestParams);
         }
         $this->initOptions();
+        $this->addOption(CURLOPT_TIMEOUT, 60);
+
         $this->response = curl_exec($this->ch);
         if ($this->response === false) {
             throw new CurlWrapperCurlException($this->ch);

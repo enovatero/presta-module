@@ -28,7 +28,7 @@ class AdminEnovateOrder extends ModuleAdminController
         ];
         $order = new Order($id_order);
 
-        $result = $this->module->sendToMentor($order, $options);
+        $result = $this->module->sendOrderToMentor($order, $options);
         if (Tools::getValue('redirect')) {
             if (isset($result['link'])) {
                 Tools::redirect($result['link']);

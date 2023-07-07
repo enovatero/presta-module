@@ -227,8 +227,11 @@ class EnovateProducts {
             $id_lang = Context::getContext()->language->id;
         }
         $sql = "SELECT
-                    pac.id_product_attribute, (SELECT SUM(quantity) FROM " . _DB_PREFIX_ . "stock_available WHERE id_product_attribute = pac.id_product_attribute) as quantity,
-                    GROUP_CONCAT(' - ', agl.name, ' : ', al.name ORDER BY agl.id_attribute_group SEPARATOR '') as attribute_designation, pa.reference
+                    pac.id_product_attribute, 
+                    (SELECT SUM(quantity) FROM " . _DB_PREFIX_ . "stock_available WHERE id_product_attribute = pac.id_product_attribute) as quantity,
+                    GROUP_CONCAT(' - ', agl.name, ' : ', al.name ORDER BY agl.id_attribute_group SEPARATOR '') as attribute_designation, 
+                    pa.reference,
+                    pa.price
                 FROM " . _DB_PREFIX_ . "product_attribute_combination pac
                 LEFT JOIN " . _DB_PREFIX_ . "attribute a ON a.id_attribute = pac.id_attribute
                 LEFT JOIN " . _DB_PREFIX_ . "attribute_group ag ON ag.id_attribute_group = a.id_attribute_group
@@ -275,7 +278,7 @@ class EnovateProducts {
     }
 
     public function generateCode($id) {
-        $code = '_' . sha1(microtime(true) + $id);
+        $code = 'MZ' . sha1(microtime(true) + $id);
         return substr($code, 0, 10);
     }
 }

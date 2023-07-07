@@ -89,8 +89,8 @@ require_once 'CurlWrapper.php';
 class EnovateApi {
     protected $_apiKey              = '';
     protected $_accessTokenHandler  = null;
-    protected $_baseURL             = 'http://medaz.dev.enovate.ro';
-//    protected $_baseURL             = 'http://medaz.loc';
+//    protected $_baseURL             = 'http://medaz.dev.enovate.ro';
+    protected $_baseURL             = 'http://medaz.loc';
 
 
     /**
@@ -116,6 +116,10 @@ class EnovateApi {
      */
     public function createInvoice($data) {
         return $this->_createDoc('invoice', $data);
+    }
+
+    public function sendCustomer($data) {
+        return $this->_sendCustomer($data);
     }
 
     public function createProducts(array $data): ?array
@@ -254,14 +258,23 @@ class EnovateApi {
     protected function _createDoc($type, $data) {
         $this->_checkType($type);
 
-        if (empty($data['cif']) && $this->_cif) {
-            $data['cif'] = $this->_cif;
-        }
+//        if (empty($data['cif']) && $this->_cif) {
+//            $data['cif'] = $this->_cif;
+//        }
 //        if (empty($data['cif'])) {
 //            throw new Exception('Empty cif');
 //        }
         $request = $this->_getAuthorization();
-        $request->rawPost($this->_baseURL . '/api/sendInvoiceToMentor', json_encode($data));
+        $request->rawPost($this->_baseURL . '/api/sendOrderToMentor', json_encode($data));
+        $this->_checkErrorResponse($request);
+
+        return json_decode($request->getResponse(), true);
+    }
+
+    protected function _sendCustomer(array $data): ?array
+    {
+        $request = $this->_getAuthorization();
+        $request->rawPost($this->_baseURL . '/api/sendClientToMentor', json_encode($data));
         $this->_checkErrorResponse($request);
 
         return json_decode($request->getResponse(), true);

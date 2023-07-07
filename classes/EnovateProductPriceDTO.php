@@ -2,18 +2,29 @@
 
 class EnovateProductPriceDTO {
 
-    private $id;
+    private $productId;
+    private $productAttributeId;
     private $code;
     private $price;
 
-    public function getId(): int
+    public function getProductId(): int
     {
-        return $this->id;
+        return $this->productId;
     }
 
-    public function setID(int $id): void
+    public function setProductId(int $productId): void
     {
-        $this->id = $id;
+        $this->productId = $productId;
+    }
+
+    public function getProductAttributeId(): ?int
+    {
+        return $this->productAttributeId;
+    }
+
+    public function setProductAttributeId(?int $productAttributeId): void
+    {
+        $this->productAttributeId = $productAttributeId;
     }
 
     public function getCode(): string

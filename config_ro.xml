@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<module>
+    <name>enovate</name>
+    <displayName><![CDATA[ENOVATE module]]></displayName>
+    <version><![CDATA[1.0.2]]></version>
+    <description><![CDATA[integration with ENOVATE APIs]]></description>
+    <author><![CDATA[spiderr]]></author>
+    <tab><![CDATA[billing_invoicing]]></tab>
+	<confirmUninstall><![CDATA[Are you sure you want to uninstall?]]></confirmUninstall>
+    <is_configurable>0</is_configurable>
+    <need_instance>1</need_instance>
+</module>

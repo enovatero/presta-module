@@ -38,7 +38,7 @@ class AdminEnovateData extends ModuleAdminController
                     'name' => Tools::getValue('name')
                 ]);
                 break;
-            case 'prices':
+            case 'generate_reference':
                 echo $this->module->regerateReferenceIfNeeded();
                 break;
             case 'stock':
